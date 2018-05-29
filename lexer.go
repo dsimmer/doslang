@@ -70,6 +70,7 @@ func isKeyword(word string) bool {
 	case "for":
 	case "else":
 	case "elseif":
+	case "print":
 		return true
 	default:
 		return false

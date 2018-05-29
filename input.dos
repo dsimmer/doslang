@@ -1,0 +1,7 @@
+print "init"
+if 3+6==8 {
+    print "true"
+} else {
+    print "false"
+}
+print "test"

@@ -22,5 +22,5 @@ func main() {
 	content, err := ioutil.ReadFile("./input.dos")
 	check(err)
 	parser := Parser{}
-	_ = parser.ProcessText(string(content))
+	_ = parser.GenerateAST(string(content))
 }
