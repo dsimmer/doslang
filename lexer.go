@@ -9,6 +9,7 @@ type Lexer struct {
 	result      Tokens
 }
 
+// http://blog.leahhanson.us/post/recursecenter2016/recipeparser.html
 // { type: "punc", value: "(" }           // punctuation: parens, comma, semicolon etc.
 //     { type: "num", value: 5 }              // numbers
 //     { type: "str", value: "Hello World!" } // strings
@@ -71,6 +72,7 @@ func isKeyword(word string) bool {
 	case "else":
 	case "elseif":
 	case "print":
+	case "var":
 		return true
 	default:
 		return false
