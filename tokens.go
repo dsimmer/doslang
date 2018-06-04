@@ -1,5 +1,7 @@
 package main
 
+import "errors"
+
 // Token stores the data struct for tokens
 type Token struct {
 	class string
@@ -35,4 +37,16 @@ func (t Tokens) Next() (Token, error) {
 		return t.tokens[t.cursor+1], nil
 	}
 	return Token{}, ErrorMap["EmptyToken"]
+}
+
+// Current gives you the current token
+func (t Tokens) Current() Token {
+	return t.tokens[t.cursor]
+}
+
+// todo this should map to the cursor error, should return in a channel essentially
+
+// Croak gives you the token after the cursor
+func (t Tokens) Croak(msg string) error {
+	return errors.New(msg + " (" + string(t.cursor) + ")")
 }
