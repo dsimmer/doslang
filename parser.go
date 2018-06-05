@@ -1,42 +1,42 @@
 package main
 
-import "errors"
-
 type node struct {
-	operator string
-	node     []node
-	name     string
-	cond     []node
+	node  []*node
+	class string
+	name  string
+	value string
+	cond  []*node
 }
 
 // Parser holds all the functions for processing tokens
 type Parser struct {
 	cursor int
-	tokens Tokens
-	AST    []node
+	tokens *Tokens
+	AST    []*node
 }
 
 func isOperand(token Token) bool {
 	switch token.class {
 	case "string":
+		fallthrough
 	case "number":
+		fallthrough
 	case "operator":
 		return true
 	default:
 		return false
 	}
-	return false
 }
 
 func isExpression(token Token) bool {
 	switch token.class {
 	case "keyword":
+		fallthrough
 	case "identifier":
 		return true
 	default:
 		return false
 	}
-	return false
 }
 
 // function parse_if() {
@@ -52,57 +52,47 @@ func isExpression(token Token) bool {
 //     return ret;
 // }
 
-func (p Parser) parseIf(currentNode *node) (bool, error) {
-	condNode := node{}
-	nodeNode := node{}
-	currentNode.name = "if"
-	currentNode.cond = append(currentNode.cond, condNode)
-	currentNode.operator = "if"
-	currentNode.node = append(currentNode.node, nodeNode)
+// Todo fix this to have a better structure for storing elseif and else
 
-	token, err := p.tokens.Next()
-	if err != nil {
-		if err == ErrorMap["EOF"] {
-			return true, nil
-		}
-		return false, err
-	}
-	done, err := p.parseOperand(&condNode)
-	if err != nil {
-		if err == ErrorMap["EOF"] {
-			return true, nil
-		}
-		return false, err
-	}
-	done, err = p.parseExpression(&condNode)
-	if err != nil {
-		if err == ErrorMap["EOF"] {
-			return true, nil
-		}
-		return false, err
-	}
+func (p *Parser) parseIf(currentNode *node) error {
+	var err error
+	for {
+		condNode := node{}
+		nodeNode := node{}
+		currentNode.class = "expression"
+		currentNode.cond = append(currentNode.cond, &condNode)
+		currentNode.name = "if"
+		currentNode.node = append(currentNode.node, &nodeNode)
 
-	return done, err
-}
-func (p Parser) parseElseif(currentNode *node) (bool, error) {
-	token, err := p.tokens.Next()
-	if err != nil {
-		if err == ErrorMap["EOF"] {
-			return true, nil
+		err = p.parseOperand(&condNode)
+		if err != nil {
+			return err
 		}
-		return false, err
-	}
-	return false, nil
-}
-func (p Parser) parseElse(currentNode *node) (bool, error) {
-	token, err := p.tokens.Next()
-	if err != nil {
-		if err == ErrorMap["EOF"] {
-			return true, nil
+		err = p.parseNext(&nodeNode)
+		if err != nil {
+			return err
 		}
-		return false, err
+		token, err := p.tokens.Peek()
+		if err != nil {
+			break
+		}
+		if token.class == "keyword" {
+			if token.value == "else" {
+				_, _ = p.tokens.Next()
+				newNode := node{}
+				currentNode.node = append(currentNode.node, &newNode)
+				err = p.parseNext(&newNode)
+				if err != nil {
+					return err
+				}
+			} else if token.value == "elseif" {
+				_, _ = p.tokens.Next()
+				continue
+			}
+			break
+		}
 	}
-	return false, nil
+	return err
 }
 
 // todo
@@ -116,82 +106,110 @@ func (p Parser) parseElse(currentNode *node) (bool, error) {
 // 	}
 // 	return false, nil
 // }
-func (p Parser) parsePrint(currentNode *node) (bool, error) {
+func (p *Parser) parsePrint(currentNode *node) error {
 	token, err := p.tokens.Next()
 	if err != nil {
-		if err == ErrorMap["EOF"] {
-			return true, nil
-		}
-		return false, err
+		return err
 	}
-	return false, nil
+	if token.class != "string" {
+		return p.tokens.Croak("expected string at " + string(p.cursor))
+	}
+	currentNode.class = "expression"
+	currentNode.name = "print"
+	currentNode.value = token.value
+
+	return nil
 }
-func (p Parser) parseVar(currentNode *node) (bool, error) {
+func (p *Parser) parseVar(currentNode *node) error {
 	token, err := p.tokens.Next()
 	if err != nil {
-		if err == ErrorMap["EOF"] {
-			return true, nil
-		}
-		return false, err
+		return err
 	}
 	if token.class != "identifier" {
-		return false, errors.New("expected identifier at " + string(p.cursor))
+		return p.tokens.Croak("expected identifier at " + string(p.cursor))
 	}
-	p.AST = append(p.AST, node{
-		operator: "var",
-		name:     token.value,
-	})
-	return false, nil
+	currentNode.class = "expression"
+	currentNode.name = "var"
+	currentNode.value = token.value
+
+	return nil
 }
 
-func (p Parser) parseExpression(currentNode *node) (bool, error) {
-	token, err := p.tokens.Next()
+func (p *Parser) parseNext(currentNode *node) error {
+	_, err := p.tokens.Next()
 	if err != nil {
-		return false, err
+		return err
 	}
+	return p.parseCurrentExpression(currentNode)
+}
+func (p *Parser) parseCurrentExpression(currentNode *node) error {
+	token := p.tokens.Current()
 	if !isExpression(token) {
-		return false, p.tokens.Croak("Not expression")
+		return p.tokens.Croak("Not expression")
 	}
-	if token.value == "if" {
+	switch token.value {
+	case "if":
 		return p.parseIf(currentNode)
+	case "else":
+		return p.tokens.Croak("Else should not be here!")
+	case "elseif":
+		return p.tokens.Croak("Elseif should not be here!")
+	case "print":
+		return p.parsePrint(currentNode)
+	case "var":
+		return p.parseVar(currentNode)
+	default:
+		break
 	}
 	//todo
 	// if token.class == "for" {
 	// 	return p.parseFor()
 	// }
-	if token.value == "else" {
-		return p.parseElse(currentNode)
-	}
-	if token.value == "elseif" {
-		return p.parseElseif(currentNode)
-	}
-	if token.value == "print" {
-		return p.parsePrint(currentNode)
-	}
-	if token.value == "var" {
-		return p.parseVar(currentNode)
-	}
-	return false, p.tokens.Croak("No Expression")
+
+	return p.tokens.Croak("No Expression")
 }
 
-func (p Parser) processOperands(currentNode *node, operands []Token) error {
+func (p *Parser) processOperands(currentNode *node, operands []Token) error {
 	// search for the different levels of operands
 	// join them up in the array (and/slice/slice) and build node from there
 	// join elements that would combine LAST - i.e. first do plus minus
 	// then / *
 	// then &|
 	// then ! =
-	items := []string{"-", "+", "/", "*"}
+
+	if len(operands) == 0 {
+		return p.tokens.Croak("somehow ran out of operators")
+	}
+
+	if len(operands) == 1 {
+		if operands[0].class == "number" || operands[0].class == "string" {
+			currentNode.value = operands[0].value
+			currentNode.name = operands[0].class
+			currentNode.class = "operator"
+			return nil
+		}
+		return p.tokens.Croak("Last operator not number or string")
+	}
+
+	items := []string{"=", "|", "&", "/", "*", "-", "+"}
 
 	for _, item := range items {
 		for index, nodeI := range operands {
 			if nodeI.value == item {
+				currentNode.value = nodeI.value
+				currentNode.name = nodeI.class
+				currentNode.class = "operator"
+
 				beforeNode := node{}
-				beforeNode.name = nodeI.class
+				beforeNode.name = nodeI.value
+				beforeNode.class = "operator"
+				currentNode.node = append(currentNode.node, &beforeNode)
 				//todo add in new node details here
 				afterNode := node{}
-				afterNode.name = nodeI.class
-				//todo add in new node details here
+				afterNode.name = nodeI.value
+				afterNode.class = "operator"
+				currentNode.node = append(currentNode.node, &afterNode)
+
 				err := p.processOperands(&beforeNode, operands[:index])
 				if err != nil {
 					return err
@@ -200,65 +218,76 @@ func (p Parser) processOperands(currentNode *node, operands []Token) error {
 				if err != nil {
 					return err
 				}
+				// We are spawning a new node for each guy so just break the loop here
+				return nil
 			}
 		}
 	}
 
-	return nil
+	return p.tokens.Croak("Somehow no operators present")
 }
 
-func (p Parser) parseOperand(currentNode *node) (bool, error) {
+func (p *Parser) parseOperand(currentNode *node) error {
 	var operands []Token
 	for {
 		token, err := p.tokens.Next()
 		if err != nil {
-			if err == ErrorMap["EOF"] {
-				return true, nil
-			}
-			return false, err
+			return err
 		}
 		if isOperand(token) {
 			// push into array
 			operands = append(operands, token)
 		} else {
-			return false, p.tokens.Croak("No Operator")
+			return p.tokens.Croak("No Operator")
 		}
 		if err != nil {
-			return false, err
+			return err
 		}
 		token, err = p.tokens.Peek()
 		if err != nil {
-			return false, err
+			return err
 		}
 		if !isOperand(token) {
 			// Validate we have all the requried elements of an operand node
 			err = p.processOperands(currentNode, operands)
 			if err != nil {
-				return false, err
+				return err
 			}
-			return false, nil
+			return nil
 		}
 	}
 }
 
 // GenerateAST orchestrates the AST generation
-func (p Parser) GenerateAST(text string) string {
+func (p *Parser) GenerateAST(text string) error {
 	lexer := Lexer{}
 	tokens, err := lexer.LexText(text)
 	if err != nil {
 		panic(err)
 	}
-	p.tokens = tokens
+	p.tokens = &tokens
 
 	p.cursor = 0
+	currentNode := node{}
+	p.AST = append(p.AST, &currentNode)
+
+	err = p.parseCurrentExpression(&currentNode)
+	if err != nil {
+		if err == ErrorMap["EOF"] {
+			return nil
+		}
+		return err
+	}
 	for {
 		currentNode := node{}
-		done, err := p.parseExpression(&currentNode)
+
+		err = p.parseNext(&currentNode)
 		if err != nil {
-			return ""
+			if err == ErrorMap["EOF"] {
+				return nil
+			}
+			return err
 		}
-		if done {
-			return ""
-		}
+		p.AST = append(p.AST, &currentNode)
 	}
 }

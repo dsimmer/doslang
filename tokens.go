@@ -15,38 +15,38 @@ type Tokens struct {
 }
 
 // Peek shows you the next token without increasing the cursor
-func (t Tokens) Peek() (Token, error) {
-	if int64(len(t.tokens)) >= t.cursor+2 {
-		return t.tokens[t.cursor+2], nil
+func (t *Tokens) Peek() (Token, error) {
+	if int64(len(t.tokens)) > t.cursor+1 {
+		return t.tokens[t.cursor+1], nil
 	}
-	return Token{}, ErrorMap["EmptyToken"]
+	return Token{}, ErrorMap["EOF"]
 }
 
 // LookAhead allows you to view any tokens ahead of the current cursor
-func (t Tokens) LookAhead(step int64) (Token, error) {
-	if int64(len(t.tokens)) >= t.cursor+1+step {
-		return t.tokens[t.cursor+1+step], nil
+func (t *Tokens) LookAhead(step int64) (Token, error) {
+	if int64(len(t.tokens)) > t.cursor+step {
+		return t.tokens[t.cursor+step], nil
 	}
-	return Token{}, ErrorMap["EmptyToken"]
+	return Token{}, ErrorMap["EOF"]
 }
 
 // Next gives you the token after the cursor
-func (t Tokens) Next() (Token, error) {
-	if int64(len(t.tokens)) >= t.cursor+2 {
+func (t *Tokens) Next() (Token, error) {
+	if int64(len(t.tokens)) > t.cursor+1 {
 		t.cursor++
-		return t.tokens[t.cursor+1], nil
+		return t.tokens[t.cursor], nil
 	}
-	return Token{}, ErrorMap["EmptyToken"]
+	return Token{}, ErrorMap["EOF"]
 }
 
 // Current gives you the current token
-func (t Tokens) Current() Token {
+func (t *Tokens) Current() Token {
 	return t.tokens[t.cursor]
 }
 
 // todo this should map to the cursor error, should return in a channel essentially
 
 // Croak gives you the token after the cursor
-func (t Tokens) Croak(msg string) error {
+func (t *Tokens) Croak(msg string) error {
 	return errors.New(msg + " (" + string(t.cursor) + ")")
 }

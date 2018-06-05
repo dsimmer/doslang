@@ -1,7 +1,7 @@
 print "init"
-if 3+6==8 {
+if 3+6=8 {
     print "true"
 } else {
-    print "false"
+    var test
 }
 print "test"

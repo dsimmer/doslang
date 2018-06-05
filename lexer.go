@@ -4,7 +4,7 @@ import "unicode"
 
 // Lexer orchestrates the tokenizing of the file
 type Lexer struct {
-	inputStream InputStream
+	inputStream *InputStream
 	cursor      int64
 	result      Tokens
 }
@@ -35,12 +35,12 @@ func isNumber(char string) bool {
 func isString(char string) bool {
 	switch char {
 	case `"`:
+		fallthrough
 	case `'`:
 		return true
 	default:
 		return false
 	}
-	return false
 }
 func isKeywordOrIdentifier(char string) bool {
 	if len(char) > 0 {
@@ -51,48 +51,63 @@ func isKeywordOrIdentifier(char string) bool {
 func isOperator(char string) bool {
 	switch char {
 	case "!":
+		fallthrough
 	case "=":
+		fallthrough
 	case "+":
+		fallthrough
 	case "-":
+		fallthrough
 	case "/":
+		fallthrough
 	case "*":
+		fallthrough
 	case "&":
+		fallthrough
 	case "|":
 		return true
 	default:
 		return false
 	}
-	return false
 }
 
 func isKeyword(word string) bool {
 	switch word {
 	case "if":
+		fallthrough
 	case "for":
+		fallthrough
 	case "else":
+		fallthrough
 	case "elseif":
+		fallthrough
 	case "print":
+		fallthrough
 	case "var":
 		return true
 	default:
 		return false
 	}
-	return false
 }
 
 func isPunct(char string) bool {
 	switch char {
 	case " ":
+		fallthrough
 	case "(":
+		fallthrough
 	case "{":
+		fallthrough
+	case "}":
+		return true
+	case ")":
 		return true
 	default:
 		return false
 	}
-	return false
 }
 
-func (l Lexer) consumeNumber() error {
+func (l *Lexer) consumeNumber() error {
 	value := l.inputStream.Curr()
 	for {
 		char, err := l.inputStream.Peek()
@@ -109,7 +124,7 @@ func (l Lexer) consumeNumber() error {
 	}
 }
 
-func (l Lexer) consumeString() error {
+func (l *Lexer) consumeString() error {
 	endChar := l.inputStream.Curr()
 	var value string
 	for {
@@ -125,7 +140,7 @@ func (l Lexer) consumeString() error {
 	}
 }
 
-func (l Lexer) consumeOperator() error {
+func (l *Lexer) consumeOperator() error {
 	value := l.inputStream.Curr()
 	// todo investigate whether we should consume two at once sometimes? e.g. !=
 	// char, err := l.inputStream.Peek()
@@ -140,7 +155,7 @@ func (l Lexer) consumeOperator() error {
 	return nil
 }
 
-func (l Lexer) consumeKeywordOrIdentifier() error {
+func (l *Lexer) consumeKeywordOrIdentifier() error {
 	value := l.inputStream.Curr()
 	for {
 		char, err := l.inputStream.Peek()
@@ -162,33 +177,17 @@ func (l Lexer) consumeKeywordOrIdentifier() error {
 	return nil
 }
 
-func (l Lexer) consumePunct() error {
-	value := l.inputStream.Curr()
-	for {
-		char, err := l.inputStream.Peek()
-		if err != nil {
-			return err
-		}
-		if isOperator(char) {
-			value = value + char
-			l.inputStream.Next()
-		} else {
-			break
-		}
-	}
-	l.result.tokens = append(l.result.tokens, Token{class: "operator", value: value})
+func (l *Lexer) consumePunct() error {
+	// _, err = l.inputStream.Next()
+	// Just dont do anything and it will skip to the next item
+	//todo add in a scope token
 	return nil
 }
 
-func (l Lexer) readNext() (bool, error) {
-	char, err := l.inputStream.Next()
-	if err != nil {
-		if err == ErrorMap["EOF"] {
-			// we finished!
-			return true, nil
-		}
-		return false, err
-	}
+func (l *Lexer) read() (bool, error) {
+	var err error
+	char := l.inputStream.Curr()
+
 	switch true {
 	case isNumber(char):
 		err = l.consumeNumber()
@@ -217,14 +216,37 @@ func (l Lexer) readNext() (bool, error) {
 	return false, nil
 }
 
+func (l *Lexer) readNext() (bool, error) {
+	_, err := l.inputStream.Next()
+	if err != nil {
+		if err == ErrorMap["EOF"] {
+			// we finished!
+			return true, nil
+		}
+		return false, err
+	}
+	return l.read()
+}
+
+func (l *Lexer) readCurr() (bool, error) {
+	return l.read()
+}
+
 //todo turn lextext into a parallel channel
 
 // LexText tokenizes a given text string
-func (l Lexer) LexText(text string) (Tokens, error) {
-	l.inputStream = InputStream{}
+func (l *Lexer) LexText(text string) (Tokens, error) {
+	l.inputStream = &InputStream{}
 	l.inputStream.Init(text)
 	l.cursor = 0
 	l.result = Tokens{tokens: []Token{}, cursor: 0}
+	done, err := l.readCurr()
+	if err != nil {
+		return Tokens{}, err
+	}
+	if done {
+		return l.result, nil
+	}
 	for {
 		done, err := l.readNext()
 		if err != nil {
